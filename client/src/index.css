@@ -175,6 +175,36 @@
   }
 }
 
+/* =============================================================================
+   AddressFinder Widget Styles
+   ============================================================================= */
+.af-list {
+  @apply absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.af-item {
+  @apply px-4 py-3 text-sm cursor-pointer transition-colors;
+}
+
+.af-item:hover,
+.af-item-hover {
+  @apply bg-gray-50;
+}
+
+.af-item:active {
+  @apply bg-gray-100;
+}
+
+.af-footer {
+  @apply px-4 py-2 text-xs text-gray-400 border-t border-gray-100 bg-gray-50;
+}
+
+.af-error {
+  @apply px-4 py-3 text-sm text-red-600;
+}
+
 /**
  * Using the elevate system.
  * Automatic contrast adjustment.

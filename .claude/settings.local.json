@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run check:*)",
+      "Bash(npm run db:push:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run build:*)",
+      "Bash(node -e:*)",
+      "Bash(export DATABASE_URL=\"postgresql://postgres.opyxbxixgngcjzuvpszd:xM171KYvqGxHJs6U8TwScs5LLelInEmZHojnQJmrwF70lZPN#5d-Cqrm7uGU7t257zvk_gtefjCye_8rHSTDDDcyqs7E@aws-0-ap-southeast-2.pooler.supabase.com:6543/postgres\")",
+      "Bash(timeout 15 npm run dev:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

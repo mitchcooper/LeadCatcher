@@ -163,11 +163,11 @@ export default function Home() {
           </motion.div>
 
           <motion.div variants={itemVariants} className="flex justify-center gap-4">
-            <Button data-testid="button-get-started">
-              Get Started
+            <Button data-testid="button-get-started" asChild>
+              <a href="/admin">Admin Dashboard</a>
             </Button>
-            <Button variant="outline" data-testid="button-documentation">
-              Documentation
+            <Button variant="outline" data-testid="button-documentation" asChild>
+              <a href="/admin/pages/new">Create Landing Page</a>
             </Button>
           </motion.div>
         </motion.div>

@@ -11,4 +11,6 @@ export default defineConfig({
   dbCredentials: {
     url: process.env.DATABASE_URL,
   },
+  // Only manage tables with leads_ prefix (to avoid touching sister app tables)
+  tablesFilter: ["leads_*"],
 });
