@@ -106,7 +106,7 @@ export function CheckboxBlock({
       )}
 
       {fieldError && (
-        <p className="text-sm text-red-500 ml-7">{fieldError.message as string}</p>
+        <p className="text-sm text-red-500 ml-7">{String(fieldError.message ?? "")}</p>
       )}
 
       {!fieldError && helperText && (

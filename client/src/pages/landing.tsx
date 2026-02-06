@@ -1,15 +1,17 @@
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { PageRenderer } from "@/components/blocks/SectionRenderer";
 import { AppraisalFormProvider, useAppraisalForm } from "@/context/AppraisalFormContext";
+import { PageFormProvider } from "@/context/PageFormContext";
 import { FormLayout } from "@/components/FormLayout";
 import { Step1Address } from "@/components/form-steps/Step1Address";
 import { Step2Relationship } from "@/components/form-steps/Step2Relationship";
 import { Step3Timeline } from "@/components/form-steps/Step3Timeline";
 import { Step4Contact } from "@/components/form-steps/Step4Contact";
-import type { LandingPage, ApiResponse, ThemeConfig, PageSection } from "@shared/schema";
+import { DynamicStepRenderer } from "@/components/form-steps/DynamicStepRenderer";
+import type { LandingPage, ApiResponse, ThemeConfig, FormFlow, PageType } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { Loader2, AlertCircle } from "lucide-react";
 
@@ -44,7 +46,7 @@ function useAnalyticsTracking(pageId: string | undefined) {
 function getOrCreateSessionId(): string {
   let sessionId = sessionStorage.getItem("leads_session_id");
   if (!sessionId) {
-    sessionId = `sess_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+    sessionId = crypto.randomUUID();
     sessionStorage.setItem("leads_session_id", sessionId);
   }
   return sessionId;
@@ -54,15 +56,18 @@ function getOrCreateSessionId(): string {
 // THEME INJECTION
 // =============================================================================
 
+function sanitizeCssValue(value: string): string {
+  return value.replace(/[{}<>]/g, "").replace(/\/\*/g, "").replace(/\*\//g, "");
+}
+
 function ThemeStyle({ config }: { config?: ThemeConfig }) {
   if (!config) return null;
 
   const cssVars = Object.entries(config)
     .filter(([, value]) => value)
     .map(([key, value]) => {
-      // Convert camelCase to kebab-case CSS variable
       const cssKey = key.replace(/([A-Z])/g, "-$1").toLowerCase();
-      return `--${cssKey}: ${value};`;
+      return `--${cssKey}: ${sanitizeCssValue(String(value))};`;
     })
     .join("\n");
 
@@ -76,69 +81,61 @@ function ThemeStyle({ config }: { config?: ThemeConfig }) {
 }
 
 // =============================================================================
-// FORM SUBMISSION HANDLER
+// DETERMINE IF PAGE USES DYNAMIC FORM FLOW
 // =============================================================================
 
-interface FormSubmissionResult {
-  success: boolean;
-  data?: { id: string };
-  message?: string;
-  error?: string;
-}
-
-function useFormSubmission(pageId: string | undefined) {
-  const trackEvent = useAnalyticsTracking(pageId);
-
-  return useMutation({
-    mutationFn: async (data: Record<string, unknown>): Promise<FormSubmissionResult> => {
-      // Get UTM params from URL
-      const params = new URLSearchParams(window.location.search);
-      const utmParams = {
-        utmSource: params.get("utm_source") || undefined,
-        utmMedium: params.get("utm_medium") || undefined,
-        utmCampaign: params.get("utm_campaign") || undefined,
-        utmTerm: params.get("utm_term") || undefined,
-        utmContent: params.get("utm_content") || undefined,
-      };
-
-      return apiRequest("/api/appraisals", {
-        method: "POST",
-        body: JSON.stringify({
-          ...data,
-          landingPageId: pageId,
-          referrer: document.referrer || undefined,
-          ...utmParams,
-        }),
-      });
-    },
-    onSuccess: () => {
-      trackEvent({ eventType: "form_submit" });
-    },
-  });
+function hasDynamicFormFlow(page: LandingPage): boolean {
+  const formFlow = page.formFlow as FormFlow | undefined;
+  // Use dynamic flow if formFlow has steps configured
+  return !!(formFlow && formFlow.steps && formFlow.steps.length > 0);
 }
 
 // =============================================================================
-// LANDING PAGE CONTENT RENDERER
+// DYNAMIC FORM CONTENT (new system - for all page types with formFlow)
 // =============================================================================
 
-function LandingPageContent({ page }: { page: LandingPage }) {
-  const { currentStep, nextStep, totalSteps, submitForm } = useAppraisalForm();
+function DynamicFormContent({ page }: { page: LandingPage }) {
   const trackEvent = useAnalyticsTracking(page.id);
-  const submitMutation = useFormSubmission(page.id);
 
-  // Track page view on mount
   useEffect(() => {
     trackEvent({ eventType: "page_view" });
   }, [trackEvent]);
 
-  // Track step completions
+  const sections = page.sections || [];
+
+  return (
+    <div className="min-h-screen">
+      {/* Render content sections */}
+      {sections.length > 0 && (
+        <PageRenderer sections={sections} />
+      )}
+
+      {/* Dynamic form */}
+      <div className="py-12 px-4">
+        <DynamicStepRenderer />
+      </div>
+    </div>
+  );
+}
+
+// =============================================================================
+// LEGACY APPRAISAL CONTENT (backward compatibility for existing pages)
+// =============================================================================
+
+function LegacyAppraisalContent({ page }: { page: LandingPage }) {
+  const { currentStep, totalSteps } = useAppraisalForm();
+  const trackEvent = useAnalyticsTracking(page.id);
+
+  useEffect(() => {
+    trackEvent({ eventType: "page_view" });
+  }, [trackEvent]);
+
   useEffect(() => {
     if (currentStep > 1) {
       trackEvent({ eventType: "step_complete", stepNumber: currentStep - 1 });
     }
   }, [currentStep, trackEvent]);
 
-  // Render form step
   const renderStep = () => {
     switch (currentStep) {
       case 1:
@@ -154,7 +151,6 @@ function LandingPageContent({ page }: { page: LandingPage }) {
     }
   };
 
-  // Get sections before and after the form
   const sections = page.sections || [];
   const formSectionIndex = sections.findIndex(
     (s) => s.name?.toLowerCase().includes("form") || s.id === "form"
@@ -201,12 +197,10 @@ function LandingPageContent({ page }: { page: LandingPage }) {
 
   return (
     <div className="min-h-screen">
-      {/* Sections before form */}
       {sectionsBeforeForm.length > 0 && (
         <PageRenderer sections={sectionsBeforeForm} />
       )}
 
-      {/* Multi-step form */}
       <FormLayout>
         <AnimatePresence mode="wait">
           <motion.div
@@ -221,7 +215,6 @@ function LandingPageContent({ page }: { page: LandingPage }) {
         </AnimatePresence>
       </FormLayout>
 
-      {/* Sections after form */}
       {sectionsAfterForm.length > 0 && (
         <PageRenderer sections={sectionsAfterForm} />
       )}
@@ -230,7 +223,37 @@ function LandingPageContent({ page }: { page: LandingPage }) {
 }
 
 // =============================================================================
-// LANDING PAGE LOADER
+// LANDING PAGE WRAPPER (chooses between dynamic and legacy rendering)
+// =============================================================================
+
+function LandingPageContent({ page }: { page: LandingPage }) {
+  const useDynamic = hasDynamicFormFlow(page);
+
+  if (useDynamic) {
+    const formFlow = page.formFlow as FormFlow;
+    const pageType = (page.pageType || "appraisal") as PageType;
+
+    return (
+      <PageFormProvider
+        formFlow={formFlow}
+        pageType={pageType}
+        landingPageId={page.id}
+      >
+        <DynamicFormContent page={page} />
+      </PageFormProvider>
+    );
+  }
+
+  // Legacy: use hardcoded appraisal flow
+  return (
+    <AppraisalFormProvider>
+      <LegacyAppraisalContent page={page} />
+    </AppraisalFormProvider>
+  );
+}
+
+// =============================================================================
+// LOADING / ERROR STATES
 // =============================================================================
 
 function LandingPageLoader() {
@@ -282,9 +305,7 @@ export default function LandingPage() {
   return (
     <>
       <ThemeStyle config={page.themeConfig ?? undefined} />
-      <AppraisalFormProvider>
-        <LandingPageContent page={page} />
-      </AppraisalFormProvider>
+      <LandingPageContent page={page} />
     </>
   );
 }
@@ -319,9 +340,7 @@ export function PreviewPage() {
         Preview Mode {page.status === "draft" && "- This page is not published yet"}
       </div>
       <ThemeStyle config={page.themeConfig ?? undefined} />
-      <AppraisalFormProvider>
-        <LandingPageContent page={page} />
-      </AppraisalFormProvider>
+      <LandingPageContent page={page} />
     </>
   );
 }

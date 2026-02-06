@@ -1,4 +1,4 @@
-import { memo, useMemo } from "react";
+import { Component, memo, useMemo, type ReactNode } from "react";
 import { motion } from "framer-motion";
 import { blockRegistry, type BlockProps } from "@/lib/blocks/registry";
 import type { BlockConfig } from "@shared/schema";
@@ -38,6 +38,48 @@ const animationVariants = {
     animate: { opacity: 1, scale: 1 },
   },
 };
+
+// =============================================================================
+// ERROR BOUNDARY
+// =============================================================================
+
+interface BlockErrorBoundaryProps {
+  blockType: string;
+  children: ReactNode;
+}
+
+interface BlockErrorBoundaryState {
+  error: Error | null;
+}
+
+class BlockErrorBoundary extends Component<BlockErrorBoundaryProps, BlockErrorBoundaryState> {
+  constructor(props: BlockErrorBoundaryProps) {
+    super(props);
+    this.state = { error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): BlockErrorBoundaryState {
+    return { error };
+  }
+
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error(`Block "${this.props.blockType}" render error:`, error, info.componentStack);
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="p-4 border border-red-200 bg-red-50 rounded-lg">
+          <p className="text-red-600 text-sm font-medium">
+            Error rendering block: {this.props.blockType}
+          </p>
+          <p className="text-red-500 text-xs mt-1">{this.state.error.message}</p>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 // =============================================================================
 // BLOCK RENDERER PROPS
@@ -121,6 +163,13 @@ function BlockRendererComponent({
     "lg:hidden": visibility.mobile && visibility.tablet && !visibility.desktop,
   });
 
+  // Wrap component in error boundary
+  const content = (
+    <BlockErrorBoundary blockType={config.type}>
+      <Component {...blockProps} />
+    </BlockErrorBoundary>
+  );
+
   // Wrap in motion div for animations if not disabled
   if (!disableAnimations && animation.entrance !== "none") {
     return (
@@ -134,7 +183,7 @@ function BlockRendererComponent({
         }}
         className={cn(visibilityClasses, className)}
       >
-        <Component {...blockProps} />
+        {content}
       </motion.div>
     );
   }
@@ -142,31 +191,10 @@ function BlockRendererComponent({
   // Render without animation wrapper
   return (
     <div className={cn(visibilityClasses, className)}>
-      <Component {...blockProps} />
+      {content}
     </div>
   );
 }
 
 // Memoize for performance
 export const BlockRenderer = memo(BlockRendererComponent);
-
-// =============================================================================
-// BLOCK ERROR BOUNDARY (for production safety)
-// =============================================================================
-
-export function BlockErrorFallback({
-  blockType,
-  error,
-}: {
-  blockType: string;
-  error: Error;
-}) {
-  return (
-    <div className="p-4 border border-red-200 bg-red-50 rounded-lg">
-      <p className="text-red-600 text-sm font-medium">
-        Error rendering block: {blockType}
-      </p>
-      <p className="text-red-500 text-xs mt-1">{error.message}</p>
-    </div>
-  );
-}

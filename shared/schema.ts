@@ -13,6 +13,10 @@ export const leadsLandingPages = pgTable("leads_landing_pages", {
   name: varchar("name", { length: 128 }).notNull(),
   status: varchar("status", { length: 20 }).notNull().default("draft"), // draft, published, archived
 
+  // Page type determines form behavior and submission handling
+  pageType: varchar("page_type", { length: 32 }).notNull().default("appraisal"),
+  // appraisal | lead_magnet | newsletter | webinar | inquiry | custom
+
   // SEO metadata
   metaTitle: varchar("meta_title", { length: 256 }),
   metaDescription: text("meta_description"),
@@ -192,6 +196,52 @@ export type InsertAnalyticsEvent = typeof leadsAnalyticsEvents.$inferInsert;
 export type AnalyticsEvent = typeof leadsAnalyticsEvents.$inferSelect;
 
 // =============================================================================
+// FORM SUBMISSIONS TABLE (generic, for non-appraisal page types)
+// =============================================================================
+
+export const leadsFormSubmissions = pgTable("leads_form_submissions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+
+  // Source tracking
+  landingPageId: varchar("landing_page_id").references(() => leadsLandingPages.id),
+  pageType: varchar("page_type", { length: 32 }).notNull(),
+
+  // Common contact fields (extracted from formData for querying)
+  email: varchar("email", { length: 120 }).notNull(),
+  firstName: varchar("first_name", { length: 64 }),
+  lastName: varchar("last_name", { length: 64 }),
+  phone: varchar("phone", { length: 20 }),
+
+  // All form data (flexible JSONB)
+  formData: jsonb("form_data").default({}).$type<Record<string, unknown>>(),
+
+  // UTM tracking
+  utmSource: varchar("utm_source", { length: 128 }),
+  utmMedium: varchar("utm_medium", { length: 128 }),
+  utmCampaign: varchar("utm_campaign", { length: 128 }),
+
+  // Request metadata
+  referrer: varchar("referrer", { length: 512 }),
+  ipAddress: varchar("ip_address", { length: 45 }),
+
+  // Lead status
+  status: varchar("status", { length: 20 }).notNull().default("new"),
+  notes: text("notes"),
+
+  // Timestamps
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  landingPageIdx: index("leads_form_subs_landing_page_idx").on(table.landingPageId),
+  pageTypeIdx: index("leads_form_subs_page_type_idx").on(table.pageType),
+  emailIdx: index("leads_form_subs_email_idx").on(table.email),
+  createdAtIdx: index("leads_form_subs_created_at_idx").on(table.createdAt),
+}));
+
+export type InsertFormSubmission = typeof leadsFormSubmissions.$inferInsert;
+export type FormSubmission = typeof leadsFormSubmissions.$inferSelect;
+
+// =============================================================================
 // TYPE DEFINITIONS FOR JSONB COLUMNS
 // =============================================================================
 
@@ -262,18 +312,41 @@ export interface PageSection {
   };
 }
 
+// Page types
+export const PAGE_TYPES = [
+  "appraisal",
+  "lead_magnet",
+  "newsletter",
+  "webinar",
+  "inquiry",
+  "custom",
+] as const;
+export type PageType = typeof PAGE_TYPES[number];
+
+export const PAGE_TYPE_LABELS: Record<PageType, string> = {
+  appraisal: "Property Appraisal",
+  lead_magnet: "Lead Magnet / Download",
+  newsletter: "Newsletter Signup",
+  webinar: "Webinar / Event Registration",
+  inquiry: "Property Management Inquiry",
+  custom: "Custom Form",
+};
+
 // Form step definition
 export interface FormStep {
   id: string;
   title: string;
   description?: string;
-  blocks: string[]; // Block IDs that belong to this step
-  validation?: Record<string, unknown>;
+  blocks: BlockConfig[]; // Inline block configs for this step
+  layout?: "single" | "two-column"; // Layout variant for the step
 }
 
 // Form flow configuration
 export interface FormFlow {
   steps: FormStep[];
+  submitButtonText?: string;
+  successTitle?: string;
+  successMessage?: string;
   submitAction?: {
     webhookUrl?: string;
     emailTo?: string;
