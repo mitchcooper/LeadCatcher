@@ -44,7 +44,7 @@ function useAnalyticsTracking(pageId: string | undefined) {
 function getOrCreateSessionId(): string {
   let sessionId = sessionStorage.getItem("leads_session_id");
   if (!sessionId) {
-    sessionId = `sess_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+    sessionId = crypto.randomUUID();
     sessionStorage.setItem("leads_session_id", sessionId);
   }
   return sessionId;
@@ -54,6 +54,11 @@ function getOrCreateSessionId(): string {
 // THEME INJECTION
 // =============================================================================
 
+// Sanitize a CSS value to prevent injection (strip braces, semicolons, and comments)
+function sanitizeCssValue(value: string): string {
+  return value.replace(/[{}<>]/g, "").replace(/\/\*/g, "").replace(/\*\//g, "");
+}
+
 function ThemeStyle({ config }: { config?: ThemeConfig }) {
   if (!config) return null;
 
@@ -62,7 +67,7 @@ function ThemeStyle({ config }: { config?: ThemeConfig }) {
     .map(([key, value]) => {
       // Convert camelCase to kebab-case CSS variable
       const cssKey = key.replace(/([A-Z])/g, "-$1").toLowerCase();
-      return `--${cssKey}: ${value};`;
+      return `--${cssKey}: ${sanitizeCssValue(String(value))};`;
     })
     .join("\n");
 

@@ -194,8 +194,8 @@ export function AppraisalFormProvider({
       if (onSubmit) {
         await onSubmit(data);
       } else {
-        // Default: POST to /api/submit
-        const response = await fetch("/api/submit", {
+        // Default: POST to /api/appraisals
+        const response = await fetch("/api/appraisals", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

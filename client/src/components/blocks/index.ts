@@ -1,5 +1,5 @@
 // Block rendering components
-export { BlockRenderer, BlockErrorFallback } from "./BlockRenderer";
+export { BlockRenderer } from "./BlockRenderer";
 export { SectionRenderer, PageRenderer } from "./SectionRenderer";
 
 // Re-export registry utilities

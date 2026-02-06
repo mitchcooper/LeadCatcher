@@ -158,7 +158,12 @@ function BlockPropertiesEditor({
                   id={prop.key}
                   type="number"
                   value={(localProps[prop.key] as number) || 0}
-                  onChange={(e) => handleChange(prop.key, parseFloat(e.target.value))}
+                  onChange={(e) => {
+                    const parsed = parseFloat(e.target.value);
+                    if (!Number.isNaN(parsed)) {
+                      handleChange(prop.key, parsed);
+                    }
+                  }}
                 />
               )}
               {prop.type === "boolean" && (

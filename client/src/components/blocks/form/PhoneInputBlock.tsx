@@ -110,7 +110,7 @@ export function PhoneInputBlock({
       </div>
 
       {fieldError && (
-        <p className="text-sm text-red-500">{fieldError.message as string}</p>
+        <p className="text-sm text-red-500">{String(fieldError.message ?? "")}</p>
       )}
 
       {!fieldError && helperText && (

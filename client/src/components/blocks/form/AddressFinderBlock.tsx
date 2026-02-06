@@ -206,7 +206,7 @@ export function AddressFinderBlock({
       {/* Error message */}
       {(fieldError || error) && (
         <p className="text-sm text-red-500">
-          {error || (fieldError?.message as string) || errorMessage}
+          {error || String(fieldError?.message ?? "") || errorMessage}
         </p>
       )}
 
