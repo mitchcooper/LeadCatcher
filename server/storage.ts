@@ -5,6 +5,8 @@ import {
   type InsertLandingPage,
   type PropertyAppraisal,
   type InsertPropertyAppraisal,
+  type FormSubmission,
+  type InsertFormSubmission,
   type Suburb,
   type InsertSuburb,
   type AnalyticsEvent,
@@ -14,6 +16,7 @@ import {
   type PaginatedResponse,
   leadsLandingPages,
   leadsPropertyAppraisals,
+  leadsFormSubmissions,
   leadsSuburbs,
   leadsAnalyticsEvents,
   leadsBlockTemplates,
@@ -39,6 +42,10 @@ export interface IStorage {
   getAppraisalById(id: string): Promise<PropertyAppraisal | undefined>;
   createAppraisal(appraisal: InsertPropertyAppraisal): Promise<PropertyAppraisal>;
   updateAppraisalStatus(id: string, status: string, notes?: string): Promise<PropertyAppraisal | undefined>;
+
+  // Generic Form Submissions
+  getFormSubmissions(options?: { pageType?: string; landingPageId?: string; page?: number; pageSize?: number }): Promise<PaginatedResponse<FormSubmission>>;
+  createFormSubmission(submission: InsertFormSubmission): Promise<FormSubmission>;
 
   // Suburbs
   getSuburbs(options?: { isActive?: boolean }): Promise<Suburb[]>;
@@ -237,6 +244,57 @@ export class DatabaseStorage implements IStorage {
       .set({ status, notes, updatedAt: new Date() })
       .where(eq(leadsPropertyAppraisals.id, id))
       .returning();
+    return result[0];
+  }
+
+  // Generic Form Submissions
+  async getFormSubmissions(options?: { pageType?: string; landingPageId?: string; page?: number; pageSize?: number }): Promise<PaginatedResponse<FormSubmission>> {
+    const db = getDb();
+    const page = options?.page ?? 1;
+    const pageSize = options?.pageSize ?? 20;
+    const offset = (page - 1) * pageSize;
+
+    const conditions = [];
+    if (options?.pageType) {
+      conditions.push(eq(leadsFormSubmissions.pageType, options.pageType));
+    }
+    if (options?.landingPageId) {
+      conditions.push(eq(leadsFormSubmissions.landingPageId, options.landingPageId));
+    }
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const [results, countResult] = await Promise.all([
+      db
+        .select()
+        .from(leadsFormSubmissions)
+        .where(whereClause)
+        .orderBy(desc(leadsFormSubmissions.createdAt))
+        .limit(pageSize)
+        .offset(offset),
+      db
+        .select({ count: count() })
+        .from(leadsFormSubmissions)
+        .where(whereClause),
+    ]);
+
+    const total = countResult[0]?.count ?? 0;
+
+    return {
+      success: true,
+      data: results,
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages: Math.ceil(total / pageSize),
+      },
+    };
+  }
+
+  async createFormSubmission(submission: InsertFormSubmission): Promise<FormSubmission> {
+    const db = getDb();
+    const result = await db.insert(leadsFormSubmissions).values(submission).returning();
     return result[0];
   }
 

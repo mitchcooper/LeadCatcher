@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import {
   appraisalSubmissionSchema,
+  formSubmissionSchema,
   createLandingPageSchema,
   updateLandingPageSchema,
   analyticsEventSchema,
@@ -11,7 +12,8 @@ import {
   updateSuburbSchema,
   createBlockTemplateSchema,
 } from "@shared/validations";
-import type { ApiResponse, InsertLandingPage, InsertPropertyAppraisal, InsertSuburb, InsertBlockTemplate } from "@shared/schema";
+import type { ApiResponse, InsertLandingPage, InsertPropertyAppraisal, InsertFormSubmission, InsertSuburb, InsertBlockTemplate } from "@shared/schema";
+import { getAllPageTemplates, getPageTemplate } from "@shared/page-templates";
 import { z } from "zod";
 
 // =============================================================================
@@ -128,6 +130,27 @@ export async function registerRoutes(
       message: "LeadConverter API is running",
       timestamp: new Date().toISOString(),
     });
+  });
+
+  // ===========================================================================
+  // PAGE TEMPLATES
+  // ===========================================================================
+
+  // Get all page templates (for creating new pages)
+  app.get("/api/admin/page-templates", requireAdmin, (_req, res) => {
+    const templates = getAllPageTemplates();
+    sendSuccess(res, templates);
+  });
+
+  // Get template for a specific page type
+  app.get("/api/admin/page-templates/:pageType", requireAdmin, (req, res) => {
+    const { pageType } = req.params;
+    try {
+      const template = getPageTemplate(pageType as any);
+      sendSuccess(res, template);
+    } catch {
+      sendError(res, 404, "Template not found for this page type");
+    }
   });
 
   // ===========================================================================
@@ -338,6 +361,60 @@ export async function registerRoutes(
       }
       console.error("Error creating appraisal:", error);
       sendError(res, 500, "Failed to submit form. Please try again.");
+    }
+  });
+
+  // ===========================================================================
+  // GENERIC FORM SUBMISSIONS - PUBLIC
+  // ===========================================================================
+
+  // Submit generic form (for non-appraisal page types: lead magnet, newsletter, etc.)
+  app.post("/api/submissions", rateLimit(10, 60_000), async (req, res) => {
+    try {
+      const validated = formSubmissionSchema.parse(req.body);
+
+      const submissionData: InsertFormSubmission = {
+        ...validated,
+        referrer: req.get("referrer") || undefined,
+        ipAddress: req.ip || undefined,
+      };
+
+      const submission = await storage.createFormSubmission(submissionData);
+
+      // Increment submission count on the landing page
+      if (submission.landingPageId) {
+        await storage.incrementPageSubmissions(submission.landingPageId);
+      }
+
+      sendSuccess(res, { id: submission.id }, "Thank you for your submission!");
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return sendError(res, 400, error.errors[0]?.message || "Validation failed");
+      }
+      console.error("Error creating form submission:", error);
+      sendError(res, 500, "Failed to submit form. Please try again.");
+    }
+  });
+
+  // ===========================================================================
+  // FORM SUBMISSIONS - ADMIN
+  // ===========================================================================
+
+  // List form submissions (admin)
+  app.get("/api/admin/submissions", requireAdmin, async (req, res) => {
+    try {
+      const { pageType, landingPageId } = req.query;
+      const { page, pageSize } = parsePagination(req.query);
+      const result = await storage.getFormSubmissions({
+        pageType: pageType as string | undefined,
+        landingPageId: landingPageId as string | undefined,
+        page,
+        pageSize,
+      });
+      res.json(result);
+    } catch (error) {
+      console.error("Error fetching submissions:", error);
+      sendError(res, 500, "Failed to fetch submissions");
     }
   });
 

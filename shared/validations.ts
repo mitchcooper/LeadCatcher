@@ -52,6 +52,15 @@ export type AppraisalSubmission = z.infer<typeof appraisalSubmissionSchema>;
 // LANDING PAGE VALIDATION
 // =============================================================================
 
+export const pageTypeSchema = z.enum([
+  "appraisal",
+  "lead_magnet",
+  "newsletter",
+  "webinar",
+  "inquiry",
+  "custom",
+]);
+
 export const createLandingPageSchema = z.object({
   slug: z.string()
     .min(1, "Slug is required")
@@ -59,6 +68,7 @@ export const createLandingPageSchema = z.object({
     .regex(/^[a-z0-9-]+$/, "Slug can only contain lowercase letters, numbers, and hyphens"),
   name: z.string().min(1, "Name is required").max(128),
   status: z.enum(["draft", "published", "archived"]).default("draft"),
+  pageType: pageTypeSchema.default("appraisal"),
   metaTitle: z.string().max(256).optional(),
   metaDescription: z.string().optional(),
   ogImageUrl: z.string().url().optional().or(z.literal("")),
@@ -73,6 +83,33 @@ export type CreateLandingPage = z.infer<typeof createLandingPageSchema>;
 export const updateLandingPageSchema = createLandingPageSchema.partial();
 
 export type UpdateLandingPage = z.infer<typeof updateLandingPageSchema>;
+
+// =============================================================================
+// GENERIC FORM SUBMISSION VALIDATION
+// =============================================================================
+
+export const formSubmissionSchema = z.object({
+  // Required
+  email: z.string().email("Invalid email address").max(120),
+  landingPageId: z.string().min(1, "Landing page ID is required"),
+  pageType: pageTypeSchema,
+
+  // Optional contact fields
+  firstName: z.string().max(64).optional(),
+  lastName: z.string().max(64).optional(),
+  phone: z.string().max(20).optional(),
+
+  // All form field values
+  formData: z.record(z.unknown()).optional(),
+
+  // UTM parameters
+  utmSource: z.string().optional(),
+  utmMedium: z.string().optional(),
+  utmCampaign: z.string().optional(),
+  referrer: z.string().optional(),
+});
+
+export type FormSubmissionInput = z.infer<typeof formSubmissionSchema>;
 
 // =============================================================================
 // SUBURB VALIDATION
